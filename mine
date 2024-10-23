@@ -1,0 +1,118 @@
+namespace ErrorSorter;
+
+public class Record
+{
+    public string RowKey { get; set; }
+    public string TimeStamp { get; set; }
+    public string HttpMethod { get; set; }
+    public string Url { get; set; }
+    public string Exception { get; set; }
+    public string Message { get; set; }
+
+    public override string ToString()
+    {
+        return $"{RowKey}, {TimeStamp}, {HttpMethod}, {Url}, {Exception}, {Message}";
+    }
+}
+------
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using Microsoft.Win32;
+using OfficeOpenXml;
+
+namespace ErrorSorter;
+
+/// <summary>
+/// Interaction logic for MainWindow.xaml
+/// </summary>
+public partial class MainWindow : Window
+{
+            public MainWindow()
+        {
+            InitializeComponent();
+        }
+
+        private void LoadFileButton_Click(object sender, RoutedEventArgs e)
+        {
+            OpenFileDialog openFileDialog = new OpenFileDialog
+            {
+                Filter = "CSV Files (*.csv)|*.csv|All Files (*.*)|*.*"
+            };
+
+            if (openFileDialog.ShowDialog() == true)
+            {
+                var records = ParseCsvFile(openFileDialog.FileName);
+                DisplayRecords(records);
+            }
+        }
+
+        private List<Record> ParseCsvFile(string filePath)
+        {
+            var records = new List<Record>();
+            var lines = File.ReadAllLines(filePath);
+
+            foreach (var line in lines.Skip(1)) // Skip the header
+            {
+                var columns = line.Split(',');
+                var record = new Record
+                {
+                    RowKey = columns[0],
+                    TimeStamp = columns[1],
+                    HttpMethod = columns[2],
+                    Url = columns[3],
+                    Exception = columns[4],
+                    Message = columns[5]
+                };
+                records.Add(record);
+            }
+
+            return records
+                .OrderBy(r => r.Exception)
+                .ThenBy(r => r.Message)
+                .ToList();
+        }
+
+        private void DisplayRecords(List<Record> records)
+        {
+            var groupedRecords = records
+                .GroupBy(r => new { r.Exception, r.Message })
+                .Where(g => g.Count() > 5)
+                .ToList();
+
+            Random random = new Random();
+
+            foreach (var record in records)
+            {
+                TextBlock textBlock = new TextBlock
+                {
+                    Text = record.ToString(),
+                    Margin = new Thickness(5)
+                };
+
+                if (groupedRecords.Any(g => g.Key.Exception == record.Exception && g.Key.Message == record.Message))
+                {
+                    textBlock.Background = new SolidColorBrush(Color.FromRgb((byte)random.Next(256), (byte)random.Next(256), (byte)random.Next(256)));
+                }
+
+                RecordsPanel.Children.Add(textBlock);
+            }
+        }
+    }
+
+
+---------
+
+            <Grid>
+                 <StackPanel>
+                         <Button Content="Load File" Click="LoadFileButton_Click" Margin="10" />
+                         <ScrollViewer>
+                                 <StackPanel x:Name="RecordsPanel" />
+                         </ScrollViewer>
+                 </StackPanel>
+            </Grid>
+</Window>
